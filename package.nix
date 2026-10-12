@@ -2,12 +2,33 @@ let
   npins = import ./npins { };
   pkgs = import npins.nixpkgs { };
 
-  src = pkgs.fetchFromGitHub {
+  waywallRev = "300868207819618025d71ce98b03972868adafd5";
+  waywallSrc = pkgs.fetchFromGitHub {
     owner = "tesselslate";
     repo = "waywall";
-    rev = "300868207819618025d71ce98b03972868adafd5";
+    rev = waywallRev;
     hash = "sha256-mBm4C0t809NWI0/HR53eQGuGSGj7Jrgv9sDh36kxvqM=";
   };
+
+  glfwSrc = pkgs.applyPatches {
+    src = pkgs.fetchFromGitHub {
+      owner = "glfw";
+      repo = "glfw";
+      rev = "3.4";
+      hash = "sha256-FcnQPDeNHgov1Z07gjFze0VMz2diOrpbKZCsI96ngz0=";
+    };
+    patches = [ "${waywallSrc}/contrib/glfw.patch" ];
+  };
+
+  maintainers-md = pkgs.writeText "MAINTAINERS.md" ''
+    GLFW Maintainers and Contributors:
+    - See https://github.com/glfw/glfw/blob/3.4/CONTRIBUTORS.md for the list of contributors (or the bundled Contributors.md file).
+
+    Note:
+    This version of GLFW (3.4) includes a patch from the waywall project (https://github.com/tesselslate/waywall)
+    to enable compatibility with Minecraft when used with waywall. The patch is applied from:
+    https://raw.githubusercontent.com/tesselslate/waywall/${waywallRev}/contrib/glfw.patch
+  '';
 
   pacmanConf =
     let
@@ -20,12 +41,15 @@ let
       DisableSandbox
 
       [core]
-      Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
+      # Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
+      Server = https://mirror.aarnet.edu.au/pub/archlinux/$repo/os/$arch
 
       [extra]
-      Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
+      # Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
+      Server = https://mirror.aarnet.edu.au/pub/archlinux/$repo/os/$arch
     '';
 
+  # Produces a directory of tarballs that pacman can use `-U` on to install
   mkPackages =
     { names, hash }:
     pkgs.runCommand "arch-packages"
@@ -52,79 +76,121 @@ let
         rm -f $out/*.part
       '';
 
-  archImage =
-    let
-      archPackages = mkPackages {
-        names = [
-          "base-devel"
-          "meson"
-          "libegl"
-          "libgles"
-          "luajit"
-          "libspng"
-          "wayland"
-          "libxcb"
-          "libxkbcommon"
-          "xorg-xwayland"
-          "wayland-protocols"
-          "git"
-        ];
-        hash = "";
+  waywallDepends = mkPackages {
+    names = [
+      "base-devel"
+
+      # waywall
+      "meson"
+      "libegl"
+      "libgles"
+      "luajit"
+      "libspng"
+      "wayland"
+      "libxcb"
+      "libxkbcommon"
+      "xorg-xwayland"
+      "wayland-protocols"
+      "git"
+
+      # for glfw
+      "cmake"
+      "ninja"
+      "libxrandr"
+      "libxinerama"
+      "libxcursor"
+      "libxi"
+    ];
+    hash = "sha256-FYkJoWQfkZQ9cGTlHDJ3gl/0bXSBMAQQxWZDrUHUWrc=";
+  };
+
+  archImage = pkgs.vmTools.runInLinuxVM (
+    pkgs.stdenv.mkDerivation rec {
+      name = "arch-image";
+
+      nativeBuildInputs = [
+        pkgs.pacman
+        pkgs.e2fsprogs
+        pkgs.util-linux
+      ];
+
+      preVM = pkgs.vmTools.createEmptyImage {
+        size = 4096;
+        fullName = name;
       };
-    in
-    pkgs.vmTools.runInLinuxVM (
-      pkgs.stdenv.mkDerivation rec {
-        name = "arch-image";
 
-        nativeBuildInputs = [
-          pkgs.pacman
-          pkgs.e2fsprogs
-          pkgs.util-linux
-        ];
+      buildCommand = ''
+        mkfs.ext4 /dev/vda
+        mkdir -p /mnt
+        mount /dev/vda /mnt
+        mkdir -p /mnt/{dev,proc,sys,etc,var/lib/pacman}
+        mount --bind /dev  /mnt/dev
+        mount --bind /proc /mnt/proc
+        mount --bind /sys  /mnt/sys
 
-        preVM = pkgs.vmTools.createEmptyImage {
-          size = 4096;
-          fullName = name;
-        };
+        pacman --config ${pacmanConf} --root /mnt --dbpath /mnt/var/lib/pacman \
+          --noconfirm --noscriptlet -U ${waywallDepends}/*.pkg.tar.zst
 
-        buildCommand = ''
-          mkfs.ext4 /dev/vda
-          mkdir -p /mnt
-          mount /dev/vda /mnt
-          mkdir -p /mnt/{dev,proc,sys,etc,var/lib/pacman}
-          mount --bind /dev  /mnt/dev
-          mount --bind /proc /mnt/proc
-          mount --bind /sys  /mnt/sys
-
-          pacman --config ${pacmanConf} --root /mnt --dbpath /mnt/var/lib/pacman \
-            --noconfirm --noscriptlet -U ${archPackages}/*.pkg.tar.zst
-
-          umount /mnt/dev /mnt/proc /mnt/sys
-          umount /mnt
-        '';
-      }
-    );
-
+        umount /mnt/dev /mnt/proc /mnt/sys
+        umount /mnt
+      '';
+    }
+  );
 in
 pkgs.vmTools.runInLinuxImage (
   pkgs.stdenv.mkDerivation {
-    name = "waywall";
+    name = "waywall-glfw";
 
     diskImage = archImage;
     diskImageFormat = "qcow2";
     memSize = 2048;
 
-    inherit src;
+    dontUnpack = true;
+
+    src = pkgs.linkFarm "src" [
+      {
+        name = "waywall";
+        path = waywallSrc;
+      }
+      {
+        name = "glfw";
+        path = glfwSrc;
+      }
+    ];
 
     buildPhase = ''
       set -e
 
-      cp -r $src .
+      # dir setup
+      cp -rL $src ./src
+      cd ./src
+      mkdir glfw/build
+
+      # fix permissions
       useradd -m builduser
+      chmod -R u+w .
       chown -R builduser:builduser .
 
+      # build glfw
+      pushd glfw
+      runuser -u builduser -- cmake -S . -B build -DBUILD_SHARED_LIBS=ON -DGLFW_BUILD_WAYLAND=ON
+      runuser -u builduser -- make -C build
+      popd
+
+      mkdir -p ./waywall/waywall-build/glfw
+      cp ./glfw/build/src/libglfw.so* ./waywall/waywall-build/glfw/
+      cp ./glfw/LICENSE.md ./glfw/CONTRIBUTORS.md ./waywall/waywall-build/glfw/
+      cp ${maintainers-md} ./waywall/waywall-build/glfw/MAINTAINERS.md
+
+      # build waywall
+      pushd waywall
+      runuser -u builduser -- make
       pushd contrib
-      runuser -l builduser -c "cd $PWD && makepkg --nodeps --noconfirm"
+      runuser -u builduser -- makepkg --nodeps --noconfirm
+
+      # cpy to out
+      mkdir -p $out
+      cp ./waywall*.zst $out
     '';
   }
 )
