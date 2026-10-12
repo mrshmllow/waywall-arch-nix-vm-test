@@ -41,12 +41,12 @@ let
       DisableSandbox
 
       [core]
-      # Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
-      Server = https://mirror.aarnet.edu.au/pub/archlinux/$repo/os/$arch
+      Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
+      # Server = https://mirror.aarnet.edu.au/pub/archlinux/$repo/os/$arch
 
       [extra]
-      # Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
-      Server = https://mirror.aarnet.edu.au/pub/archlinux/$repo/os/$arch
+      Server = https://archive.archlinux.org/repos/${date}/$repo/os/$arch
+      # Server = https://mirror.aarnet.edu.au/pub/archlinux/$repo/os/$arch
     '';
 
   # Produces a directory of tarballs that pacman can use `-U` on to install
