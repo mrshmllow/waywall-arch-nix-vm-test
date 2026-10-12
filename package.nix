@@ -40,7 +40,7 @@ let
         outputHash = hash;
       }
       ''
-        set -x -e
+        set -e
 
         mkdir -p db root gpg $out
 
@@ -67,7 +67,6 @@ let
           "libxkbcommon"
           "xorg-xwayland"
           "wayland-protocols"
-          "meson"
           "git"
         ];
         hash = "";
@@ -97,14 +96,7 @@ let
           mount --bind /proc /mnt/proc
           mount --bind /sys  /mnt/sys
 
-          cat > pacman.conf <<EOF
-          [options]
-          Architecture = x86_64
-          SigLevel = Never
-          LocalFileSigLevel = Never
-          EOF
-
-          pacman --config pacman.conf --root /mnt --dbpath /mnt/var/lib/pacman \
+          pacman --config ${pacmanConf} --root /mnt --dbpath /mnt/var/lib/pacman \
             --noconfirm --noscriptlet -U ${archPackages}/*.pkg.tar.zst
 
           umount /mnt/dev /mnt/proc /mnt/sys
@@ -125,7 +117,7 @@ pkgs.vmTools.runInLinuxImage (
     inherit src;
 
     buildPhase = ''
-      set -x -e
+      set -e
 
       cp -r $src .
       useradd -m builduser
