@@ -10,11 +10,12 @@ let
     hash = "sha256-mBm4C0t809NWI0/HR53eQGuGSGj7Jrgv9sDh36kxvqM=";
   };
 
+  glfwRev = "3.4";
   glfwSrc = pkgs.applyPatches {
     src = pkgs.fetchFromGitHub {
       owner = "glfw";
       repo = "glfw";
-      rev = "3.4";
+      rev = glfwRev;
       hash = "sha256-FcnQPDeNHgov1Z07gjFze0VMz2diOrpbKZCsI96ngz0=";
     };
     patches = [ "${waywallSrc}/contrib/glfw.patch" ];
@@ -22,10 +23,10 @@ let
 
   maintainers-md = pkgs.writeText "MAINTAINERS.md" ''
     GLFW Maintainers and Contributors:
-    - See https://github.com/glfw/glfw/blob/3.4/CONTRIBUTORS.md for the list of contributors (or the bundled Contributors.md file).
+    - See https://github.com/glfw/glfw/blob/${glfwRev}/CONTRIBUTORS.md for the list of contributors (or the bundled Contributors.md file).
 
     Note:
-    This version of GLFW (3.4) includes a patch from the waywall project (https://github.com/tesselslate/waywall)
+    This version of GLFW (${glfwRev}) includes a patch from the waywall project (https://github.com/tesselslate/waywall)
     to enable compatibility with Minecraft when used with waywall. The patch is applied from:
     https://raw.githubusercontent.com/tesselslate/waywall/${waywallRev}/contrib/glfw.patch
   '';
