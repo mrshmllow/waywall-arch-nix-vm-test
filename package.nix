@@ -2,7 +2,7 @@ let
   npins = import ./npins { };
   pkgs = import npins.nixpkgs { };
 
-  waywallRev = "300868207819618025d71ce98b03972868adafd5";
+  waywallRev = "0.2026.10.12b";
   waywallSrc = pkgs.fetchFromGitHub {
     owner = "tesselslate";
     repo = "waywall";
